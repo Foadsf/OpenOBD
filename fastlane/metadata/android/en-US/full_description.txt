@@ -1,0 +1,10 @@
+<p>OpenOBD is a minimal app for ELM327-compatible Bluetooth OBD-II adapters, such as the Veepeak OBDCheck BLE and BLE+. It connects over Bluetooth LE without pairing, or over Classic Bluetooth.</p>
+<ul>
+<li><b>Live:</b> gauges you choose and every sensor the car reports. Record to CSV.</li>
+<li><b>Codes:</b> stored, pending and permanent trouble codes with descriptions, freeze frame, emissions readiness, and a guarded clear.</li>
+<li><b>Vehicle:</b> VIN, control units, calibration IDs, and the car's own monitor test results with pass/fail limits.</li>
+<li><b>Care:</b> a service schedule by distance and time.</li>
+<li><b>Terminal:</b> send any AT or OBD command to the adapter.</li>
+<li><b>Demo:</b> try it without an adapter.</li>
+</ul>
+<p>No network permission, no account, no analytics, no ads. Standard OBD-II only: ABS, airbag, coding and service resets are outside what a generic adapter offers.</p>

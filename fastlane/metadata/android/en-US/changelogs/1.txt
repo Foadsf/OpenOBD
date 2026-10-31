@@ -1,0 +1,1 @@
+First release: live data, trouble codes, freeze frame, readiness, vehicle information, monitor tests, service schedule, terminal and demo mode.

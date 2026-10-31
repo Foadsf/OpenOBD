@@ -1,0 +1,19 @@
+.gradle/
+.kotlin/
+build/
+local.properties
+*.iml
+.idea/
+
+# Signing keys never go in this public repo. See README "Signing".
+*.keystore
+*.jks
+
+# Research inputs: vendor PDF (Veepeak copyright), chat export, and a phone screenshot
+# that shows personal identifiers. They stay local and never enter the public repo.
+/User Instructions.pdf
+/Veepeak OBDCheck BLE+ Manual and TPD.md
+/Screenshot_*.jpg
+
+# Built APKs are release assets, not source.
+*.apk
