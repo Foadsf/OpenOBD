@@ -1,5 +1,7 @@
 package io.github.foadsf.openobd.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -13,6 +15,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -37,11 +41,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import io.github.foadsf.openobd.AdapterInfo
 import io.github.foadsf.openobd.Conn
 import io.github.foadsf.openobd.Session
+import io.github.foadsf.openobd.obd.ProtocolTry
 import io.github.foadsf.openobd.obd.Units
 import io.github.foadsf.openobd.obd.pidInfo
 import kotlinx.coroutines.delay
@@ -57,7 +63,11 @@ fun LiveScreen(session: Session) {
 
 @Composable
 private fun CarSilent(session: Session, info: AdapterInfo) {
-    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    val scan by session.protocolScan.collectAsState()
+    Column(
+        Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         Panel {
             Text("The adapter is ready, but the car isn't answering", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.size(8.dp))
@@ -68,14 +78,39 @@ private fun CarSilent(session: Session, info: AdapterInfo) {
             Text(
                 "• Switch the ignition on (or start the engine).\n" +
                     "• Push the adapter firmly into the port.\n" +
-                    "• The car must be OBD-II/EOBD compliant (EU petrol 2001+, diesel 2004+; US 1996+).\n" +
+                    "• The car must be OBD-II/EOBD compliant (EU petrol 2001+, diesel 2004+; US 1996+). " +
+                    "Some earlier diesels, such as Peugeot and Citroën HDi from before 2004, only speak the maker's own protocol, which a generic ELM327 app cannot use.\n" +
                     "• If you chose a protocol under Vehicle › Adapter, try Automatic.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Palette.muted,
             )
             Spacer(Modifier.size(16.dp))
-            Button(onClick = session::retryCar) { Text("Try again") }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = session::retryCar) { Text("Try again") }
+                FilledTonalButton(onClick = session::scanProtocols) { Text("Try each protocol") }
+            }
         }
+        scan?.let { tried -> ProtocolScan(tried) }
+    }
+}
+
+@Composable
+private fun ProtocolScan(tried: List<ProtocolTry>) {
+    val context = LocalContext.current
+    Panel {
+        Text("Each protocol on its own", style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.size(4.dp))
+        Text(
+            "None answered, so the car does not speak standard OBD-II on this port, or the ignition is off.",
+            style = MaterialTheme.typography.bodySmall,
+            color = Palette.muted,
+        )
+        Spacer(Modifier.size(8.dp))
+        tried.forEach { KeyValue(it.name, it.error ?: "Answers", mono = true) }
+        TextButton(onClick = {
+            val text = tried.joinToString("\n") { "${it.name}: ${it.error ?: "answers"}" }
+            context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Protocol search", text))
+        }) { Text("Copy") }
     }
 }
 

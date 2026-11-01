@@ -1,0 +1,1 @@
+Cars the automatic protocol search misses: when the car does not answer, "Try each protocol" tests all nine OBD-II protocols one by one, keeps the one that works and shows what each answered. A command that times out while the adapter is still searching no longer garbles the next one. Clearer advice for diesels built before EOBD (2004).

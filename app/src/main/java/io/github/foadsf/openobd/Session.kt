@@ -12,6 +12,7 @@ import io.github.foadsf.openobd.elm.LinkLostException
 import io.github.foadsf.openobd.elm.Transport
 import io.github.foadsf.openobd.obd.Obd
 import io.github.foadsf.openobd.obd.PROTOCOLS
+import io.github.foadsf.openobd.obd.ProtocolTry
 import io.github.foadsf.openobd.obd.Reading
 import io.github.foadsf.openobd.obd.isLivePid
 import io.github.foadsf.openobd.obd.pidInfo
@@ -75,6 +76,10 @@ class Session(private val context: Context) {
 
     private val _voltage = MutableStateFlow<String?>(null)
     val voltage: StateFlow<String?> = _voltage.asStateFlow()
+
+    /** What each protocol answered in the last one-by-one search, when the car stayed silent. */
+    private val _protocolScan = MutableStateFlow<List<ProtocolTry>?>(null)
+    val protocolScan: StateFlow<List<ProtocolTry>?> = _protocolScan.asStateFlow()
 
     private val _terminal = MutableStateFlow<List<TermLine>>(emptyList())
     val terminal: StateFlow<List<TermLine>> = _terminal.asStateFlow()
@@ -156,7 +161,39 @@ class Session(private val context: Context) {
         }
     }
 
+    /**
+     * Tries every protocol on its own, for cars the automatic search misses. A protocol that
+     * answers is kept as the user's choice, so the next connection uses it straight away.
+     */
+    fun scanProtocols() {
+        val ready = _conn.value as? Conn.Ready ?: return
+        scope.launch {
+            val target = ready.info.target
+            val result = request { o ->
+                val tried = o.scanProtocols { n -> _conn.value = Conn.Busy(target, "Trying protocol $n of ${PROTOCOLS.size - 1}") }
+                val found = tried.lastOrNull()?.takeIf { it.error == null }
+                if (found != null) {
+                    prefs.protocol = found.protocol
+                    _supported.value = o.supported(1).filter(::isLivePid)
+                }
+                tried
+            }
+            result.onSuccess { tried ->
+                val found = tried.lastOrNull()?.takeIf { it.error == null }
+                _protocolScan.value = tried
+                _conn.value = Conn.Ready(
+                    ready.info.copy(
+                        protocol = found?.name ?: ready.info.protocol,
+                        carOnline = found != null,
+                        carError = if (found != null) null else tried.lastOrNull()?.error ?: ready.info.carError,
+                    ),
+                )
+            }.onFailure { if (_conn.value is Conn.Busy && obd != null) _conn.value = ready }
+        }
+    }
+
     fun disconnect() {
+        _protocolScan.value = null
         connectJob?.cancel()
         pollJob?.cancel()
         stopRecording()

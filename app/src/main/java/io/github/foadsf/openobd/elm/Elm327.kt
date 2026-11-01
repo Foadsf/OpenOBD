@@ -41,6 +41,18 @@ class Elm327(private val transport: Transport) {
                 throw e
             }
         }
+        if (done != true) {
+            // Still busy, e.g. searching protocols. Any character stops it ("STOPPED" then the
+            // prompt); wait for that so the next command is not swallowed as the interrupt.
+            transport.write("\r".toByteArray(Charsets.US_ASCII))
+            withTimeoutOrNull(2_000) {
+                try {
+                    while (true) if (transport.input.receive().any { it.toInt() == '>'.code }) break
+                } catch (e: ClosedReceiveChannelException) {
+                    throw LinkLostException(e.message ?: "Link closed")
+                }
+            }
+        }
         val response = text.toString()
         onTraffic?.invoke(command, if (done == true) response else "$response\n(no prompt after ${timeoutMs} ms)")
         if (done != true && response.isBlank()) throw ElmTimeoutException(command)

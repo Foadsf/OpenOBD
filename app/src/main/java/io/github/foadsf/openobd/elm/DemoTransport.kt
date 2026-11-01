@@ -9,8 +9,21 @@ import kotlin.math.sin
  * A simulated ELM327 v1.5 on ISO 15765-4 CAN (11 bit, 500 kbaud) with an engine ECU (7E8)
  * and a transmission ECU (7E9). It honours echo/header/space/linefeed settings and ISO-TP
  * framing, so the demo mode and the tests exercise the same code paths as a real adapter.
+ * [car] can also make it a car the automatic search misses, or one with no OBD-II at all.
  */
-class DemoTransport(private val latencyMs: Long = 35) : BaseTransport() {
+enum class DemoCar {
+    STANDARD,
+
+    /** Answers only once protocol 6 is chosen explicitly. */
+    SEARCH_MISSES,
+
+    /** Answers on no protocol, like a diesel built before EOBD. */
+    NO_OBD,
+}
+
+class DemoTransport(private val latencyMs: Long = 35, private val car: DemoCar = DemoCar.STANDARD) : BaseTransport() {
+    /** 0 = automatic search, otherwise the protocol set with AT SP / AT TP. */
+    private var protocol = 0
     private var echo = true
     private var headers = false
     private var spaces = true
@@ -38,6 +51,12 @@ class DemoTransport(private val latencyMs: Long = 35) : BaseTransport() {
     private fun respond(cmd: String): List<String> {
         if (cmd.startsWith("AT")) return at(cmd.substring(2))
         if (cmd.isEmpty() || cmd.length % 2 != 0 || cmd.any { it !in "0123456789ABCDEF" }) return listOf("?")
+        when {
+            car == DemoCar.NO_OBD || (protocol == 0 && car == DemoCar.SEARCH_MISSES) ->
+                return listOf("SEARCHING...", "UNABLE TO CONNECT")
+            protocol in 1..5 -> return listOf(if (protocol <= 2) "NO DATA" else "BUS INIT: ...ERROR")
+            protocol > 6 -> return listOf("CAN ERROR")
+        }
         val bytes = cmd.chunked(2).map { it.toInt(16) }
         val answers = listOf("7E8" to engine(bytes), "7E9" to transmission(bytes)).filter { it.second != null }
         if (answers.isEmpty()) return listOf("NO DATA")
@@ -53,8 +72,12 @@ class DemoTransport(private val latencyMs: Long = 35) : BaseTransport() {
         c == "I" -> listOf("ELM327 v1.5")
         c == "@1" -> listOf("OpenOBD demo adapter")
         c == "RV" -> listOf("${fmt1(13.9 + 0.2 * wave(7.0))}V")
-        c == "DPN" -> listOf("A6")
-        c == "DP" -> listOf("AUTO, ISO 15765-4 (CAN 11/500)")
+        c == "DPN" -> listOf(if (protocol == 0) "A6" else "$protocol")
+        c == "DP" -> listOf((if (protocol == 0) "AUTO, " else "") + "ISO 15765-4 (CAN 11/500)")
+        (c.startsWith("SP") || c.startsWith("TP")) && c.length == 3 && c[2].isDigit() -> {
+            protocol = c[2].digitToInt()
+            listOf("OK")
+        }
         c == "D" -> {
             echo = true; headers = false; spaces = true; linefeeds = false
             listOf("OK")

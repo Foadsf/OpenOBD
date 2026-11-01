@@ -36,6 +36,9 @@ data class VehicleInfo(val vin: String?, val ecus: List<EcuInfo>)
 /** Result of the first contact with the car after the adapter is up. */
 data class Probe(val online: Boolean, val protocol: String, val error: String?)
 
+/** One protocol tried on its own; [error] is null when the car answered. */
+data class ProtocolTry(val protocol: Int, val name: String, val error: String?)
+
 /** SAE J1979 diagnostic services on top of an [Elm327] link. Headers stay on (`AT H1`). */
 class Obd(private val elm: Elm327) {
     var family = Family.CAN11
@@ -82,7 +85,37 @@ class Obd(private val elm: Elm327) {
         val description = at("ATDP").lastOrNull().orEmpty().removePrefix("AUTO, ")
         val messages = parse(lines)
         val online = messages.any { it.data.size >= 2 && it.data[0] == 0x41 && it.data[1] == 0x00 }
-        return Probe(online, description, if (online) null else firstError(lines) ?: lines.firstOrNull())
+        return Probe(online, description, if (online) null else firstError(lines) ?: lines.firstOrNull() ?: "No answer within 15 s")
+    }
+
+    /**
+     * Tries each protocol on its own (`AT TP h`: no automatic search, nothing saved), for cars
+     * the automatic search misses. Stops at the first that answers and stays on it; otherwise
+     * puts the adapter back on [protocolChoice]. Returns what each protocol answered.
+     */
+    suspend fun scanProtocols(progress: (protocol: Int) -> Unit = {}): List<ProtocolTry> {
+        restoreIfDirty()
+        val tried = mutableListOf<ProtocolTry>()
+        for ((n, name) in PROTOCOLS.drop(1)) {
+            progress(n)
+            at("ATTP$n")
+            val lines = try {
+                responseLines(elm.send("0100", 12_000), "0100")
+            } catch (_: ElmTimeoutException) {
+                emptyList()
+            }
+            family = familyOf(n)
+            val online = parse(lines).any { it.data.size >= 2 && it.data[0] == 0x41 && it.data[1] == 0x00 }
+            tried += ProtocolTry(n, name, if (online) null else firstError(lines) ?: lines.firstOrNull() ?: "No answer")
+            if (online) {
+                protocolChoice = n
+                protocolNumber = n
+                return tried
+            }
+        }
+        baseline()
+        protocolNumber = 0
+        return tried
     }
 
     private fun parse(lines: List<String>): List<EcuMessage> {

@@ -1,5 +1,6 @@
 package io.github.foadsf.openobd
 
+import io.github.foadsf.openobd.elm.DemoCar
 import io.github.foadsf.openobd.elm.DemoTransport
 import io.github.foadsf.openobd.elm.Elm327
 import io.github.foadsf.openobd.obd.DtcKind
@@ -13,8 +14,8 @@ import org.junit.Test
 
 /** The whole stack — framing, ELM327 link, services — against the simulated car. */
 class DemoCarTest {
-    private fun withCar(block: suspend (Obd) -> Unit) = runBlocking {
-        val t = DemoTransport(latencyMs = 1)
+    private fun withCar(car: DemoCar = DemoCar.STANDARD, block: suspend (Obd) -> Unit) = runBlocking {
+        val t = DemoTransport(latencyMs = 1, car = car)
         t.open()
         val obd = Obd(Elm327(t))
         assertEquals("ELM327 v1.5", obd.resetAdapter())
@@ -32,6 +33,28 @@ class DemoCarTest {
         val rpm = obd.readPid(0x0C)!!
         assertEquals(2, rpm.size)
         assertTrue(obd.voltage()!!.endsWith("V"))
+    }
+
+    @Test
+    fun protocolSearchFindsWhatTheAutomaticSearchMisses() = withCar(DemoCar.SEARCH_MISSES) { obd ->
+        val probe = obd.probe()
+        assertFalse(probe.online)
+        assertEquals("UNABLE TO CONNECT", probe.error)
+        val tried = obd.scanProtocols()
+        assertEquals(listOf(1, 2, 3, 4, 5, 6), tried.map { it.protocol })
+        assertEquals("BUS INIT: ...ERROR", tried[2].error)
+        assertNull(tried.last().error)
+        assertEquals(6, obd.protocolChoice)
+        assertEquals(2, obd.readPid(0x0C)!!.size)
+    }
+
+    @Test
+    fun protocolSearchWithNoAnswerReportsEachAndStaysUsable() = withCar(DemoCar.NO_OBD) { obd ->
+        val tried = obd.scanProtocols()
+        assertEquals((1..9).toList(), tried.map { it.protocol })
+        assertTrue(tried.all { it.error == "UNABLE TO CONNECT" })
+        assertEquals(0, obd.protocolChoice)
+        assertEquals("A6", obd.raw("ATDPN").trim()) // back on automatic search
     }
 
     @Test

@@ -27,6 +27,8 @@ It does **not** do what the hardware cannot do generically: ABS/airbag/body modu
 2. Switch the ignition on. The engine can stay off.
 3. Open OpenOBD, allow **Nearby devices**, and tap the adapter under *Nearby · Bluetooth LE*. Bluetooth LE needs no pairing.
 
+If the adapter connects but the car does not answer, *Try each protocol* tests the nine OBD-II protocols one by one and keeps the one that works. If none answers, the car does not speak standard OBD-II: some diesels built before EOBD (2004 in the EU), such as Peugeot and Citroën HDi, only speak the maker's own protocol.
+
 Adapters that only speak Classic Bluetooth must be paired in Android's Bluetooth settings first (Veepeak PIN: `1234`); they then appear under *Paired · Bluetooth Classic*. The adapter serves one app at a time, so close other OBD apps.
 
 Works on Android 6.0 (API 23) and newer, phones, tablets and landscape head units.
