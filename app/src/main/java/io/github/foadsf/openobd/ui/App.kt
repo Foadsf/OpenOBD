@@ -52,6 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.foadsf.openobd.Conn
 import io.github.foadsf.openobd.Session
+import io.github.foadsf.openobd.obd.AdapterReport
 import io.github.foadsf.openobd.obd.Dtc
 import io.github.foadsf.openobd.obd.FreezeFrame
 import io.github.foadsf.openobd.obd.Readiness
@@ -79,6 +80,7 @@ class Results {
     var status by mutableStateOf<List<Pair<Int, String>>>(emptyList())
     var tests by mutableStateOf<List<TestResult>?>(null)
     var testsRan by mutableStateOf(false)
+    var adapterReport by mutableStateOf<AdapterReport?>(null)
 }
 
 @Composable
@@ -99,6 +101,7 @@ fun AppRoot(session: Session) {
         results.status = emptyList()
         results.tests = null
         results.testsRan = false
+        results.adapterReport = null
     }
 
     LogSaver(session) { message -> scope.launch { snackbar.showSnackbar(message) } }

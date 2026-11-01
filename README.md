@@ -14,7 +14,7 @@ Everything a generic ELM327 adapter exposes over standard OBD-II (SAE J1979):
 
 - **Live** — gauges you choose, plus every sensor the car reports (service $01, about 100 standard PIDs decoded; unknown ones shown raw). Record what is on screen to CSV.
 - **Codes** — stored ($03), pending ($07) and permanent ($0A) trouble codes with plain-language descriptions, the freeze frame ($02), emissions readiness since clear and for this drive cycle, and a guarded **clear codes** ($04). Share a text report with your mechanic.
-- **Vehicle** — VIN, every control unit's name, calibration IDs and CVNs ($09), the car's own monitor test results with pass/fail limits ($06), odometer and distance/time since codes were cleared. Adapter details, protocol choice, metric or imperial units.
+- **Vehicle** — VIN, every control unit's name, calibration IDs and CVNs ($09), the car's own monitor test results with pass/fail limits ($06), odometer and distance/time since codes were cleared. Adapter details and an **adapter check**: which ELM327 commands it really supports, version by version from v1.0 to v2.2, so clones that claim a version they do not implement show up. Protocol choice, metric or imperial units.
 - **Care** — a service schedule by distance and time (oil, filters, plugs, brake fluid, coolant, or your own). The odometer can be read from the car where it reports one.
 - **Terminal** — send any AT or OBD command straight to the adapter, e.g. `ATSH7E0` then `22F190` for manufacturer-specific data. The app restores its adapter settings afterwards.
 - **Demo** — no adapter? "Try the demo" runs a simulated car.

@@ -6,6 +6,7 @@ import io.github.foadsf.openobd.obd.DtcKind
 import io.github.foadsf.openobd.obd.Obd
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -75,5 +76,17 @@ class DemoCarTest {
         // Headers back on and echo off again, so framing still parses.
         assertEquals(2, obd.readPid(0x0C)!!.size)
         assertEquals("DEMO0PENOBD000001", obd.vehicleInfo().vin)
+    }
+
+    @Test
+    fun adapterCheckSpotsTheCloneAndLeavesTheLinkWorking() = withCar { obd ->
+        obd.probe()
+        val report = obd.checkAdapter()
+        assertEquals("1.5", report.claimed)
+        assertEquals("1.4", report.behavesLike)
+        assertFalse(report.acceptsAnything)
+        assertTrue(report.missingForApp.isEmpty())
+        assertTrue("never made" in report.verdict)
+        assertEquals(listOf("P0171", "P0420"), obd.readDtcs(DtcKind.STORED).first.map { it.code })
     }
 }

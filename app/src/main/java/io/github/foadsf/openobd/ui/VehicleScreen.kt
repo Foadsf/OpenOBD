@@ -43,6 +43,8 @@ import androidx.compose.ui.unit.sp
 import io.github.foadsf.openobd.BuildConfig
 import io.github.foadsf.openobd.Conn
 import io.github.foadsf.openobd.Session
+import io.github.foadsf.openobd.obd.AT_CHECKS
+import io.github.foadsf.openobd.obd.AtAnswer
 import io.github.foadsf.openobd.obd.PROTOCOLS
 import io.github.foadsf.openobd.obd.TestResult
 import io.github.foadsf.openobd.obd.Units
@@ -127,7 +129,7 @@ fun VehicleScreen(session: Session, r: Results, notify: (String) -> Unit, openCo
             }
         }
         item { SectionHeader("Adapter", Modifier.widthIn(max = 720.dp)) }
-        item { AdapterCard(session, ready, voltage) }
+        item { AdapterCard(session, ready, voltage, r, notify) }
         item { SectionHeader("Settings", Modifier.widthIn(max = 720.dp)) }
         item { SettingsCard(session) }
         item {
@@ -209,7 +211,7 @@ private fun TestsCard(tests: List<TestResult>?, ran: Boolean, running: Boolean, 
 }
 
 @Composable
-private fun AdapterCard(session: Session, ready: Conn.Ready?, voltage: String?) {
+private fun AdapterCard(session: Session, ready: Conn.Ready?, voltage: String?, r: Results, notify: (String) -> Unit) {
     Panel(Modifier.widthIn(max = 720.dp)) {
         if (ready == null) {
             Text("Not connected", color = Palette.muted)
@@ -224,6 +226,79 @@ private fun AdapterCard(session: Session, ready: Conn.Ready?, voltage: String?) 
         i.layout?.let { KeyValue("GATT service", it, mono = true) }
         KeyValue("Protocol", if (i.carOnline) i.protocol else "—")
         voltage?.let { KeyValue("Battery (at OBD port)", it) }
+        HorizontalDivider(color = Palette.outline, modifier = Modifier.padding(vertical = 12.dp))
+        AdapterCheck(session, r, notify)
+    }
+}
+
+/** Which ELM327 commands the adapter really understands, version by version. */
+@Composable
+private fun AdapterCheck(session: Session, r: Results, notify: (String) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var progress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    val run: () -> Unit = {
+        progress = 0 to AT_CHECKS.size
+        scope.launch {
+            session.request { o -> r.adapterReport = o.checkAdapter { done, total -> progress = done to total } }
+                .onFailure { notify(it.message ?: "Check failed") }
+            progress = null
+        }
+    }
+    val report = r.adapterReport
+    progress?.let { (done, total) ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+            Text("Checking command $done of $total…", color = Palette.muted, modifier = Modifier.padding(start = 12.dp))
+        }
+        return
+    }
+    if (report == null) {
+        Text(
+            "Test which ELM327 commands the adapter really supports, from v1.0 to v2.2. Many clones report a version they do not implement. Takes a few seconds and changes nothing permanently.",
+            color = Palette.muted,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Spacer(Modifier.size(12.dp))
+        FilledTonalButton(onClick = run) { Text("Check adapter") }
+        return
+    }
+    Text(report.verdict, style = MaterialTheme.typography.titleSmall, color = if (report.honest) Palette.emerald else Palette.amber)
+    Spacer(Modifier.size(6.dp))
+    Text(
+        if (report.missingForApp.isEmpty()) "Every command OpenOBD uses works."
+        else "OpenOBD needs these, and they fail: ${report.missingForApp.joinToString { it.removePrefix("AT") }}",
+        style = MaterialTheme.typography.bodySmall,
+        color = if (report.missingForApp.isEmpty()) Palette.emerald else Palette.crimson,
+    )
+    Spacer(Modifier.size(8.dp))
+    report.byVersion.forEach { (v, rs) ->
+        val bad = rs.filter { it.answer != AtAnswer.YES }
+        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("v$v", style = MaterialTheme.typography.bodyMedium.merge(Numbers))
+                if (bad.isNotEmpty()) Text(
+                    "Missing: " + bad.joinToString { "${it.check.command.removePrefix("AT")} (${it.check.purpose})" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Palette.muted,
+                )
+            }
+            Pill(
+                if (bad.isEmpty()) "${rs.size} of ${rs.size}" else "${rs.size - bad.size} of ${rs.size}",
+                when {
+                    bad.isEmpty() -> Palette.emerald
+                    bad.size == rs.size -> Palette.crimson
+                    else -> Palette.amber
+                },
+            )
+        }
+    }
+    Row {
+        TextButton(onClick = {
+            context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Adapter report", report.asText()))
+            notify("Report copied")
+        }) { Text("Copy report") }
+        TextButton(onClick = run) { Text("Check again") }
     }
 }
 

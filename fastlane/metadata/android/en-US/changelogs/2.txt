@@ -1,0 +1,1 @@
+Adapter check: Vehicle › Adapter now tests which ELM327 commands the adapter really supports, version by version from v1.0 to v2.2, and spots clones that report a version they do not implement. Copy the result for a bug report.

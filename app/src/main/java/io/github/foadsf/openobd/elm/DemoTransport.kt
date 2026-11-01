@@ -69,7 +69,16 @@ class DemoTransport(private val latencyMs: Long = 35) : BaseTransport() {
             }
             listOf("OK")
         }
+        c in CLONE_LACKS || (c.startsWith("CRA") && 'X' in c) || c.startsWith("AMT") || c.startsWith("CER") -> listOf("?")
         else -> listOf("OK")
+    }
+
+    private companion object {
+        /** Like most "v1.5" clones: nothing from v1.4b on, and no made-up commands. */
+        val CLONE_LACKS = setOf(
+            "CSM0", "CSM1", "JHF0", "JHF1", "JTM1", "JTM5", "CRA", "AMC", "CTM1", "CTM5",
+            "IB12", "IB15", "IFR4", "IFR5", "IFR6", "QQ",
+        )
     }
 
     private val t get() = (System.currentTimeMillis() - start) / 1000.0

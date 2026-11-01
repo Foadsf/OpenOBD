@@ -104,6 +104,39 @@ class Obd(private val elm: Elm327) {
         probe()
     }
 
+    /**
+     * Sends harmless commands from every ELM327 firmware version and records which ones the
+     * adapter understands, plus [FAKE_COMMAND] to catch firmware that says OK to anything.
+     */
+    suspend fun checkAdapter(progress: (done: Int, total: Int) -> Unit = { _, _ -> }): AdapterReport {
+        val id = at("ATI").lastOrNull().orEmpty()
+        // The checks change filters and timers; restore everything before the next car query.
+        dirty = true
+        val results = AT_CHECKS.mapIndexed { i, c ->
+            progress(i, AT_CHECKS.size)
+            val lines = try {
+                at(c.command)
+            } catch (_: ElmTimeoutException) {
+                emptyList()
+            }
+            val answer = when {
+                lines.isEmpty() -> AtAnswer.SILENT
+                lines.any { it == "?" } -> AtAnswer.NO
+                else -> AtAnswer.YES
+            }
+            AtResult(c, answer, lines.joinToString(" / "))
+        }
+        val control = try {
+            at(FAKE_COMMAND)
+        } catch (_: ElmTimeoutException) {
+            emptyList()
+        }
+        at("ATD")
+        baseline()
+        progress(AT_CHECKS.size, AT_CHECKS.size)
+        return AdapterReport(id, results, acceptsAnything = control.any { it.equals("OK", ignoreCase = true) })
+    }
+
     /** Sends anything typed in the terminal and returns the adapter's raw answer. */
     suspend fun raw(cmd: String): String {
         val c = cmd.trim().uppercase()

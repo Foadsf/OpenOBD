@@ -5,6 +5,11 @@ import io.github.foadsf.openobd.elm.firstError
 import io.github.foadsf.openobd.elm.parseFrames
 import io.github.foadsf.openobd.elm.parseHeaderless
 import io.github.foadsf.openobd.elm.responseLines
+import io.github.foadsf.openobd.obd.AT_CHECKS
+import io.github.foadsf.openobd.obd.AdapterReport
+import io.github.foadsf.openobd.obd.AtAnswer
+import io.github.foadsf.openobd.obd.AtResult
+import io.github.foadsf.openobd.obd.ELM_VERSIONS
 import io.github.foadsf.openobd.obd.decodeReadiness
 import io.github.foadsf.openobd.obd.describeDtc
 import io.github.foadsf.openobd.obd.dtcCode
@@ -17,6 +22,38 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ProtocolTest {
+    private fun report(id: String, upTo: String, acceptsAnything: Boolean = false) = AdapterReport(
+        id,
+        AT_CHECKS.map {
+            val ok = ELM_VERSIONS.indexOf(it.version) <= ELM_VERSIONS.indexOf(upTo)
+            AtResult(it, if (ok) AtAnswer.YES else AtAnswer.NO, if (ok) "OK" else "?")
+        },
+        acceptsAnything,
+    )
+
+    @Test
+    fun adapterVerdicts() {
+        val genuine = report("ELM327 v2.2", "2.2")
+        assertEquals("2.2", genuine.behavesLike)
+        assertEquals("Handles every command up to v2.2, as it reports.", genuine.verdict)
+        assertTrue(genuine.honest)
+
+        val overclaims = report("ELM327 v2.1", "1.3a")
+        assertEquals("Reports v2.1 but only handles every command up to v1.3a.", overclaims.verdict)
+        assertTrue("v1.4b 0/4" in overclaims.asText())
+        assertFalse(overclaims.honest)
+
+        // A gap in an early version caps the result even if later commands work.
+        val gap = AdapterReport("ELM327 v1.4b", AT_CHECKS.map { AtResult(it, if (it.command == "ATPPS") AtAnswer.NO else AtAnswer.YES, "") }, false)
+        assertEquals("1.0", gap.behavesLike)
+
+        val yesToAll = report("ELM327 v2.1", "2.2", acceptsAnything = true)
+        assertTrue("cannot tell" in yesToAll.verdict)
+
+        val broken = AdapterReport("OBDII v1.5", AT_CHECKS.map { AtResult(it, if (it.command == "ATS1") AtAnswer.SILENT else AtAnswer.YES, "") }, false)
+        assertEquals(listOf("ATS1"), broken.missingForApp)
+    }
+
     @Test
     fun responseLinesDropEchoSearchingAndBusInit() {
         val raw = "0100\rSEARCHING...\rBUS INIT: ...OK\r7E8 06 41 00 BE 3F A8 13 00\r\r"
