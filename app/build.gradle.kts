@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -35,13 +37,30 @@ android {
         }
     }
 
+    // Published releases are signed with the maintainer's key, described by a properties file
+    // outside the repo (storeFile, storePassword, keyAlias, keyPassword). Point the Gradle
+    // property `openobd.signing` at it, e.g. in ~/.gradle/gradle.properties. Without it,
+    // release builds fall back to the debug key so anyone can build and sideload.
+    val releaseKey = (findProperty("openobd.signing") as String?)?.let(::file)?.takeIf { it.exists() }
+    if (releaseKey != null) {
+        val props = Properties().apply { releaseKey.inputStream().use(::load) }
+        signingConfigs {
+            create("release") {
+                storeFile = file(props.getProperty("storeFile"))
+                storePassword = props.getProperty("storePassword")
+                keyAlias = props.getProperty("keyAlias")
+                keyPassword = props.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
-            // Sideloadable out of the box; F-Droid re-signs with its own key.
-            signingConfig = signingConfigs.getByName("debug")
+            // F-Droid re-signs with its own key.
+            signingConfig = signingConfigs.getByName(if (releaseKey != null) "release" else "debug")
         }
     }
 

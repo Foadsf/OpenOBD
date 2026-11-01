@@ -33,11 +33,19 @@ Works on Android 6.0 (API 23) and newer, phones, tablets and landscape head unit
 
 ## Install
 
-Download `app-release.apk` from the [Releases](../../releases) page, or build it (below), then:
+Download `OpenOBD-<version>.apk` from the [Releases](../../releases) page and open it on the phone (allow installing from your browser or file manager when Android asks). Or build it (below) and install with:
 
 ```bash
 adb install -r app/build/outputs/apk/release/app-release.apk
 ```
+
+Release APKs are signed with this certificate (SHA-256):
+
+```
+A8:18:76:4B:16:51:62:3B:25:9D:8F:49:18:A5:D5:DA:B6:38:C1:1C:A7:0A:4E:DC:4C:AE:65:F2:0B:AC:83:7B
+```
+
+An APK you build yourself is signed with your debug key instead, so Android will not install it over a release (or the other way round) without uninstalling first.
 
 ## Build
 
@@ -56,7 +64,9 @@ The tests run the whole stack (ISO-TP framing, the ELM327 link and every OBD ser
 
 ### Signing
 
-Release builds are signed with the debug key so they install directly; F-Droid signs with its own key. If a `debug.keystore` (alias `androiddebugkey`, passwords `android`) sits next to `settings.gradle.kts`, it is used, so builds from different machines can update each other. It is gitignored: **never commit a signing key.** For GitHub releases, use a dedicated release key instead.
+Release builds you make yourself are signed with the debug key so they install directly; F-Droid signs with its own key. If a `debug.keystore` (alias `androiddebugkey`, passwords `android`) sits next to `settings.gradle.kts`, it is used, so builds from different machines can update each other. It is gitignored: **never commit a signing key.**
+
+GitHub releases are signed with the maintainer's key. Its location and passwords live in a properties file outside the repo (`storeFile`, `storePassword`, `keyAlias`, `keyPassword`); the Gradle property `openobd.signing`, set in `~/.gradle/gradle.properties`, points to it.
 
 ## How it is built
 
